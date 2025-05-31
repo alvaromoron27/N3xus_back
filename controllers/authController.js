@@ -182,18 +182,14 @@ exports.confirmAccount = (req, res) => {
 
 // Endpoint para iniciar sesión
 exports.login = async (req, res) => {
-  const { correo, contraseña } = req.body;
 
-  if (!correo || !contraseña) {
     return res
       .status(400)
       .json({ message: "Identificador y contraseña son requeridos" });
   }
 
   try {
-    // Consulta para obtener el usuario por correo electrónico o nombre de usuario
     const query = "SELECT * FROM users WHERE email = ? OR usuario = ?";
-    db.query(query, [correo, correo], async (err, results) => {
       if (err) {
         console.error("Error al buscar usuario:", err);
         return res.status(500).json({ message: "Error interno del servidor" });
