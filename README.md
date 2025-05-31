@@ -1,8 +1,8 @@
 # N3xus Backend
 
-Backend de **N3xus**, una plataforma de información de ebooks donde los usuarios pueden subir libros electrónicos para conocerlos y ver su sinopsis.  
+Backend de **N3xus**, una plataforma pensada para conocer ebooks donde son los usuarios los que suben los libros electrónicos y alimentan el ecosistema.
 
-No es una plataforma para leer los ebooks completos, sino para descubrir y explorar títulos, similar a lo que hace JustWatch con películas, pero aplicado a ebooks y libros.
+No es una plataforma para leer los ebooks completos, sino para descubrir y explorar títulos.
 
 ---
 
