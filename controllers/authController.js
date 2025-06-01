@@ -17,145 +17,124 @@ const transporter = nodemailer.createTransport({
 exports.register = async (req, res) => {
   const { nombre, apellidos, correo, contraseña, usuario } = req.body;
 
-  if (!usuario, !nombre || !apellidos || !correo || !contraseña) {
+  if (!usuario || !nombre || !apellidos || !correo || !contraseña) {
     return res.status(400).json({ message: "Todos los campos son requeridos" });
   }
 
   try {
-    // Genera un hash de la contraseña
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(contraseña, saltRounds);
 
-    // Inserta el nuevo usuario en la base de datos
-    const query =
-      "INSERT INTO users (nombre, apellidos, email, contraseña, usuario) VALUES (?, ?, ?, ?, ?)";
-    db.query(
-      query,
-      [nombre, apellidos, correo, hashedPassword, usuario],
-      async (err, results) => {
-        if (err) {
-          if (err.code === "ER_DUP_ENTRY") {
-            // Detecta si el error viene del campo "email" o "usuario"
-            if (err.sqlMessage.includes("email")) {
-              return res
-                .status(409)
-                .json({ message: "El correo electrónico ya está registrado." });
-            }
-            if (err.sqlMessage.includes("usuario")) {
-              return res
-                .status(409)
-                .json({ message: "El nombre de usuario ya está registrado." });
-            }
-          }
-          console.error(
-            "Error insertando el usuario en la base de datos:",
-            err
-          );
-          return res.status(500).send("Error interno del servidor");
-        }
+    // Intentar insertar el nuevo usuario
+    const query = `
+      INSERT INTO users (nombre, apellidos, email, contraseña, usuario) 
+      VALUES (?, ?, ?, ?, ?)
+    `;
 
-        // Generar un token de confirmación
-        const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
-          expiresIn: "1h",
-        });
+    const [result] = await db.query(query, [
+      nombre,
+      apellidos,
+      correo,
+      hashedPassword,
+      usuario,
+    ]);
 
-        // Enviar correo de confirmación
-        const mailOptions = {
-          from: process.env.EMAIL,
-          to: correo,
-          subject: "🔐Confirma tu cuenta🔐",
-          text: `Hola ${nombre},\n\nGracias por registrarte. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
-        };
+    // Generar token de confirmación
+    const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
+      expiresIn: "1h",
+    });
 
-        try {
-          await transporter.sendMail(mailOptions);
-          res
-            .status(201)
-            .send(
-              "Usuario registrado con éxito. Por favor, verifica tu correo."
-            );
-        } catch (emailError) {
-          console.error("Error enviando el correo:", emailError);
-          res
-            .status(500)
-            .send(
-              "Error interno del servidor al enviar el correo de confirmación."
-            );
-        }
+    // Configurar correo
+    const mailOptions = {
+      from: process.env.EMAIL,
+      to: correo,
+      subject: "🔐 Confirma tu cuenta 🔐",
+      text: `Hola ${nombre},\n\nGracias por registrarte. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(201).send("Usuario registrado con éxito. Por favor, verifica tu correo.");
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      if (err.message.includes("email")) {
+        return res.status(409).json({ message: "El correo electrónico ya está registrado." });
       }
-    );
-  } catch (error) {
-    console.error("Error hasheando la contraseña:", error);
+      if (err.message.includes("usuario")) {
+        return res.status(409).json({ message: "El nombre de usuario ya está registrado." });
+      }
+    }
+
+    console.error("Error al registrar el usuario:", err);
     res.status(500).send("Error interno del servidor");
   }
 };
 
-
 // Endpoint para reenviar el correo de confirmación
 exports.resendConfirmation = async (req, res) => {
-    const { correo } = req.body;
-  
-    if (!correo) {
-      return res.status(400).json({ message: "El correo es obligatorio" });
-    }
-  
-    try {
-      // Consulta para obtener el usuario por correo electrónico
-      const query = "SELECT * FROM users WHERE email = ?";
-      db.query(query, [correo], async (err, results) => {
-        if (err) {
-          console.error("Error buscando usuario:", err);
-          return res.status(500).json({ message: "Error interno del servidor" });
-        }
-  
-        if (results.length === 0) {
-          return res.status(404).json({ message: "Usuario no encontrado" });
-        }
-  
-        const usuario = results[0];
-  
-        // Verificar si la cuenta ya está confirmada
-        if (usuario.confirmado === 1) {
-          return res
-            .status(400)
-            .json({ message: "La cuenta ya está confirmada." });
-        }
-  
-        // Generar un nuevo token de confirmación
-        const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
-          expiresIn: "1h",
-        });
-  
-        // Configuración del correo
-        const mailOptions = {
-          from: process.env.EMAIL,
-          to: correo,
-          subject: "🔐Confirma tu cuenta - Reenvío🔐",
-          text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
-        };
-  
-        // Enviar el correo de confirmación
-        try {
-          await transporter.sendMail(mailOptions);
-          res.status(200).json({
-            message:
-              "Correo de confirmación reenviado. Por favor, verifica tu bandeja de entrada.",
-          });
-        } catch (emailError) {
-          console.error("Error enviando el correo:", emailError);
-          res.status(500).json({
-            message:
-              "Error interno del servidor al enviar el correo de confirmación.",
-          });
-        }
-      });
-    } catch (error) {
-      console.error("Error procesando la solicitud:", error);
-      res.status(500).json({ message: "Error interno del servidor" });
-    }
-  };
+  const { correo } = req.body;
 
-  // Endpoint para confirmar la cuenta
+  if (!correo) {
+    return res.status(400).json({ message: "El correo es obligatorio" });
+  }
+
+  try {
+    // Consulta para obtener el usuario por correo electrónico
+    const query = "SELECT * FROM users WHERE email = ?";
+    db.query(query, [correo], async (err, results) => {
+      if (err) {
+        console.error("Error buscando usuario:", err);
+        return res.status(500).json({ message: "Error interno del servidor" });
+      }
+
+      if (results.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      const usuario = results[0];
+
+      // Verificar si la cuenta ya está confirmada
+      if (usuario.confirmado === 1) {
+        return res
+          .status(400)
+          .json({ message: "La cuenta ya está confirmada." });
+      }
+
+      // Generar un nuevo token de confirmación
+      const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
+        expiresIn: "1h",
+      });
+
+      // Configuración del correo
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: correo,
+        subject: "🔐Confirma tu cuenta - Reenvío🔐",
+        text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
+      };
+
+      // Enviar el correo de confirmación
+      try {
+        await transporter.sendMail(mailOptions);
+        res.status(200).json({
+          message:
+            "Correo de confirmación reenviado. Por favor, verifica tu bandeja de entrada.",
+        });
+      } catch (emailError) {
+        console.error("Error enviando el correo:", emailError);
+        res.status(500).json({
+          message:
+            "Error interno del servidor al enviar el correo de confirmación.",
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Error procesando la solicitud:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+};
+
+// Endpoint para confirmar la cuenta
 exports.confirmAccount = (req, res) => {
   const { token } = req.body;
 
@@ -172,7 +151,10 @@ exports.confirmAccount = (req, res) => {
         return res.status(500).send("Error interno del servidor");
       }
 
-      res.status(200).json({ message: "Cuenta confirmada correctamente, ya puedes cerrar esta pestaña e iniciar sesión." });
+      res.status(200).json({
+        message:
+          "Cuenta confirmada correctamente, ya puedes cerrar esta pestaña e iniciar sesión.",
+      });
     });
   } catch (error) {
     console.error("Error verificando el token:", error);
@@ -191,58 +173,48 @@ exports.login = async (req, res) => {
   }
 
   try {
-    // Consulta para obtener el identificador
+    // Buscar usuario por email o nombre de usuario
     const query = "SELECT * FROM users WHERE email = ? OR usuario = ?";
-    db.query(query, [identificador, identificador], async (err, results) => {
-      if (err) {
-        console.error("Error al buscar usuario:", err);
-        return res.status(500).json({ message: "Error interno del servidor" });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
+    const [results] = await db.query(query, [identificador, identificador]);
 
-      const usuario = results[0];
-      // Verificar si la cuenta está confirmada
-      if (usuario.confirmado !== 1) {
-        return res.status(403).json({
-          message:
-            "La cuenta no ha sido confirmada. Por favor, verifica tu correo electrónico o nombre de usuario.",
-          unconfirmed: true,
-        });
-      }
-      // Verificar la contraseña
-      const match = await bcrypt.compare(contraseña, usuario.contraseña);
-      if (!match) {
-        return res.status(401).json({ message: "Credenciales inválidas" });
-      }
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
 
-      // Si la contraseña es correcta, obtener los libros guardados por el usuario
-      const queryBooks = `
+    const usuario = results[0];
+
+    // Verificar si la cuenta está confirmada
+    if (usuario.confirmado !== 1) {
+      return res.status(403).json({
+        message:
+          "La cuenta no ha sido confirmada.",
+        unconfirmed: true,
+      });
+    }
+    // Verificar la contraseña
+    const match = await bcrypt.compare(contraseña, usuario.contraseña);
+    if (!match) {
+      return res.status(401).json({ message: "Credenciales inválidas" });
+    }
+
+    // Si la contraseña es correcta, obtener los libros guardados por el usuario
+    const queryBooks = `
         SELECT books.* 
         FROM books
         INNER JOIN user_savedbooks ON books.id = user_savedbooks.book_id
         WHERE user_savedbooks.user_id = ?
       `;
-      db.query(queryBooks, [usuario.id], (err, booksSaved) => {
-        if (err) {
-          console.error("Error al obtener los libros guardados:", err);
-          return res
-            .status(500)
-            .json({ message: "Error al obtener los libros guardados." });
-        }
+    const [booksSaved] = await db.query(queryBooks, [usuario.id]);
 
-        // Responder con la información del usuario y los libros guardados
-        res.status(200).json({
-          Id: usuario.id,
-          Usuario: usuario.usuario,
-          Nombre: usuario.nombre,
-          Apellidos: usuario.apellidos,
-          Correo: usuario.email,
-          Fecha_de_creacion: usuario.fecha_creacion,
-          LibrosGuardados: booksSaved
-        });
-      });
+    // Responder con la información del usuario y los libros guardados
+    res.status(200).json({
+      Id: usuario.id,
+      Usuario: usuario.usuario,
+      Nombre: usuario.nombre,
+      Apellidos: usuario.apellidos,
+      Correo: usuario.email,
+      Fecha_de_creacion: usuario.fecha_creacion,
+      LibrosGuardados: booksSaved,
     });
   } catch (error) {
     console.error("Error al iniciar sesión:", error);
@@ -250,23 +222,27 @@ exports.login = async (req, res) => {
   }
 };
 
-// Ruta POST para enviar el correo de recuperación de contraseña
+// Endpoint POST para enviar el correo de recuperación de contraseña
 exports.reset = async (req, res) => {
   const { email } = req.body;
 
   const token = crypto.randomBytes(32).toString("hex");
-  const tokenExpiration = Date.now() + 1800000; // 30 minutos
+  const tokenExpiration = Date.now() + 30 * 60 * 1000; // 30 minutos
 
-  // Guardar el token y su fecha de expiración en la base de datos
-  const query =
-    "UPDATE users SET resetToken = ?, resetTokenExpiration = ? WHERE email = ?";
-  db.query(query, [token, tokenExpiration, email], (err, results) => {
-    if (err) {
-      console.error("Error guardando el token en la base de datos:", err);
-      return res.status(500).json({ message: "Error interno del servidor" });
+  try {
+    // Guardar el token y su expiración en la base de datos
+    const query = `
+      UPDATE users 
+      SET resetToken = ?, resetTokenExpiration = ? 
+      WHERE email = ?
+    `;
+    const [result] = await db.query(query, [token, tokenExpiration, email]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Correo no encontrado." });
     }
 
-    // Configurar el correo electrónico
+    // Configurar y enviar el correo
     const mailOptions = {
       from: process.env.EMAIL,
       to: email,
@@ -274,16 +250,13 @@ exports.reset = async (req, res) => {
       text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: http://localhost:3000/reset-password/${token}`,
     };
 
-    transporter
-      .sendMail(mailOptions)
-      .then(() => {
-        res.status(200).json({ message: "Correo enviado correctamente." });
-      })
-      .catch((error) => {
-        console.error("Error al enviar el correo:", error);
-        res.status(500).json({ message: "Error al enviar el correo." });
-      });
-  });
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ message: "Correo enviado correctamente." });
+  } catch (error) {
+    console.error("Error en el proceso de recuperación:", error);
+    res.status(500).json({ message: "Error interno del servidor." });
+  }
 };
 
 // Endpoint POST para cambiar la contraseña
@@ -296,14 +269,11 @@ exports.resetPassword = async (req, res) => {
       .json({ message: "Se requieren el token y la nueva contraseña" });
   }
 
-  // Buscar el token en la base de datos
-  const query =
-    "SELECT email, resetToken, resetTokenExpiration FROM users WHERE resetToken = ?";
-  db.query(query, [token], async (err, results) => {
-    if (err) {
-      console.error("Error verificando el token:", err);
-      return res.status(500).send("Error interno del servidor");
-    }
+  try {
+    // Buscar el token en la base de datos
+    const query =
+      "SELECT email, resetTokenExpiration FROM users WHERE resetToken = ?";
+    const [results] = await db.query(query, [token]);
 
     if (!results.length || results[0].resetTokenExpiration < Date.now()) {
       return res.status(401).json({ message: "Token inválido o expirado" });
@@ -311,25 +281,41 @@ exports.resetPassword = async (req, res) => {
 
     const { email } = results[0];
 
-    // Generar un hash de la nueva contraseña
+    // Hashear la nueva contraseña
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(contraseña, saltRounds);
 
-    // Actualizar la contraseña en la base de datos y eliminar el token
-    const updateQuery =
-      "UPDATE users SET contraseña = ?, resetToken = NULL, resetTokenExpiration = NULL WHERE email = ?";
-    db.query(updateQuery, [hashedPassword, email], (err, results) => {
-      if (err) {
-        console.error(
-          "Error actualizando la contraseña en la base de datos:",
-          err
-        );
-        return res.status(500).send("Error interno del servidor");
-      }
+    // Actualizar contraseña y limpiar token
+    const updateQuery = `
+      UPDATE users 
+      SET contraseña = ?, resetToken = NULL, resetTokenExpiration = NULL 
+      WHERE email = ?
+    `;
+    await db.query(updateQuery, [hashedPassword, email]);
 
-      res.status(200).send("Contraseña actualizada exitosamente");
-    });
-  });
+    res.status(200).send("Contraseña actualizada correctamente");
+
+  } catch (error) {
+    console.error("Error al restablecer la contraseña:", error);
+    res.status(500).send("Error interno del servidor");
+  }
+};
+
+// Endpoint para editar un nombre de usuario
+exports.editUsername = async (req, res) => {
+  const { user_id, username } = req.body;
+  try {
+    const query = "UPDATE users SET usuario = ? WHERE id = ?";
+    const [results] = await db.query(query, [username, user_id]);
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send("Usuario no encontrado");
+    }
+    res.status(200).send("Nombre de usuario editado con exito");
+  } catch (error) {
+    console.error("Error al editar el nombre de usuario:", error);
+    res.status(500).send("Error interno del servidor");
+  }
 };
 
 // Endpoint para eliminar la cuenta de usuario
@@ -337,15 +323,12 @@ exports.deleteAccount = async (req, res) => {
   const userId = req.body.userId;
   try {
     const query = "DELETE FROM users WHERE id = ?";
-    db.query(query, [userId], (err, results) => {
-      if (err) {
-        console.error("Error eliminando el usuario de la base de datos:", err);
-        return res.status(500).send("Error interno del servidor");
-      }
-      res.status(200).send("Cuenta eliminada con éxito");
-    });
+    const [results] = await db.query(query, [userId]);
+    // Este endpoint solo es accesible desde el perfil de un usuario autenticado
+    // Por eso asumimos que `userId` siempre es válido
+    res.status(200).send("Cuenta eliminada con éxito");
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error al eliminar la cuenta:", error);
     res.status(500).send("Error interno del servidor");
   }
 };

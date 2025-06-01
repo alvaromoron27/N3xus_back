@@ -1,7 +1,7 @@
 const db = require("../config/db");
 
-// Endpoint para agregar un nuevo book
-exports.addBook = (req, res) => {
+// Endpoint para agregar un nuevo ebook
+exports.addBook = async (req, res) => {
   const {
     titulo,
     descripcion,
@@ -10,7 +10,7 @@ exports.addBook = (req, res) => {
     numero_paginas,
     portada,
     publicacion_original,
-    user_id
+    user_id,
   } = req.body;
 
   // Validación básica
@@ -29,239 +29,256 @@ exports.addBook = (req, res) => {
     });
   }
 
-  // Inserta el nuevo book en la base de datos
-  const query = `INSERT INTO books (titulo, descripcion, autor, categoria, numero_paginas, portada, publicacion_original, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-  const values = [
-    titulo,
-    descripcion,
-    autor,
-    categoria,
-    numero_paginas,
-    portada,
-    publicacion_original,
-    user_id
-  ];
+  try {
+    const query = `
+      INSERT INTO books 
+      (titulo, descripcion, autor, categoria, numero_paginas, portada, publicacion_original, user_id) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
 
-  db.query(query, values, (err, results) => {
-    if (err) {
-      console.error("Error al agregar el libro:", err);
-      return res.status(500).json({ message: "Error al agregar el libro." });
-    }
+    const values = [
+      titulo,
+      descripcion,
+      autor,
+      categoria,
+      numero_paginas,
+      portada,
+      publicacion_original,
+      user_id,
+    ];
+
+    const [result] = await db.query(query, values);
+
     res.status(201).json({ message: "Libro agregado exitosamente." });
-  });
+  } catch (err) {
+    console.error("Error al agregar el libro:", err);
+    res
+      .status(500)
+      .json({ message: "Error interno del servidor al agregar el libro." });
+  }
 };
 
-
-// Endpoint para obtener todos los books
-exports.getAllBooks = (req, res) => {
-  //Query para obtener todos los books
+// Endpoint para obtener todos los libros
+exports.getAllBooks = async (req, res) => {
   const query = "SELECT * FROM books";
 
-  //Ejecutar la consulta
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error("Error al obtener todos los books:", err);
-      res.status(500).json({ error: "Error al obtener todos los books" });
-      return;
-    }
-    //Enviar la respuesta con los resultados
-    res.json(results);
-  });
+  try {
+    const [results] = await db.query(query);
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error al obtener todos los libros:", error);
+    res.status(500).json({ error: "Error al obtener todos los libros" });
+  }
 };
 
 // Endpoint para obtener los books nuevos
-exports.getNewBooks = (req, res) => {
-  // Obtener la fecha de hace 24 horas
-  const twentyFourHoursAgo = new Date();
-  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
-  //Query para obtener los books nuevos
-  const query = "SELECT * FROM books WHERE created_at >= ?";
-
-  //Ejecutar la consulta
-  db.query(query, [twentyFourHoursAgo], (err, results) => {
-    if (err) {
-      console.error("Error al obtener los últimos libros:", err);
-      res.status(500).json({ error: "Error al obtener los últimos libros" });
-      return;
-    }
-
+exports.getNewBooks = async (req, res) => {
+  try {
+    // Obtener la fecha de hace 24 horas
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    //Query para obtener los books nuevos
+    const query = "SELECT * FROM books WHERE created_at >= ?";
+    //Ejecutar la consulta
+    const [results] = await db.query(query, [twentyFourHoursAgo]);
     //Enviar la respuesta con los resultados
-    res.json(results);
-  });
+    res.status(200).json(results);
+  } catch {
+    console.error("Error al obtener los libros nuevos:", err);
+    res.status(500).json({ error: "Error al obtener los libros nuevos" });
+  }
 };
 
-// Endpoint para buscar books por categoría
-exports.getBooksByCategory = (req, res) => {
-  // Obtiene la categoría de los parámetros de la consulta
+// Endpoint para buscar libros por categoría
+exports.getBooksByCategory = async (req, res) => {
   const { categoria } = req.query;
 
   if (!categoria) {
     return res.status(400).json({ error: "La categoría es requerida" });
   }
 
-  // Consulta SQL para buscar books por categoría
-  const query = "SELECT * FROM books WHERE categoria = ?";
+  try {
+    const query = "SELECT * FROM books WHERE categoria = ?";
+    const [results] = await db.query(query, [categoria]);
 
-  // Ejecuta la consulta
-  db.query(query, [categoria], (err, results) => {
-    if (err) {
-      console.error("Error al buscar books por categoría:", err);
-      return res.status(500).json({ error: "Error al buscar books" });
-    }
-
-    // Envía los resultados como respuesta
-    res.json(results);
-  });
-};
-
-//Endpoint para guardar un book
-exports.saveBook = (req, res) => {
-  const { user_id, book_id } = req.body;
-
-  // Verificar si la relación ya existe
-  const sqlCheck =
-    "SELECT * FROM user_savedbooks WHERE user_id = ? AND book_id = ?";
-  db.query(sqlCheck, [user_id, book_id], (err, results) => {
-    if (err) {
-      console.error("Error al verificar si el book ya está guardado:", err);
-      return res
-        .status(500)
-        .json({ success: false, message: "Error al verificar el book" });
-    }
-
-    if (results.length > 0) {
-      // La relación ya existe
-      return res
-        .status(400)
-        .json({ success: false, message: "Libro ya guardado." });
-    } else {
-      // Insertar la relación en la tabla intermedia
-      const sqlInsert =
-        "INSERT INTO user_savedbooks (user_id, book_id) VALUES (?, ?)";
-      db.query(sqlInsert, [user_id, book_id], (err, result) => {
-        if (err) {
-          console.error("Error al guardar el book:", err);
-          return res
-            .status(500)
-            .json({ success: false, message: "Error al guardar el book" });
-        }
-
-        res
-          .status(200)
-          .json({ success: true, message: "Book guardado exitosamente." });
-      });
-    }
-  });
-};
-
-//Endpoint para obtener los books guardados por un usuario
-exports.getSavedBooks = (req, res) => {
-  const { user_id } = req.params;
-
-  // Verificar si el user_id está presente
-  if (!user_id) {
-    return res.status(400).json({ success: false, message: "user_id es requerido." });
+    res.status(200).json(results);
+  } catch (error) {
+    console.error("Error al buscar libros por categoría:", error);
+    res.status(500).json({ error: "Error al buscar libros por categoría" });
   }
-
-  // Consulta para obtener los books guardados por el usuario
-  const sqlQuery = `
-    SELECT books.*
-    FROM books
-    INNER JOIN user_books ON books.id = user_books.book_id
-    WHERE user_books.user_id = ?
-  `;
-
-  db.query(sqlQuery, [user_id], (err, results) => {
-    if (err) {
-      console.error("Error al obtener los books guardados:", err);
-      return res.status(500).json({ success: false, message: "Error al obtener los books guardados." });
-    }
-
-    res.status(200).json({ success: true, books: results });
-  });
 };
 
-// Endpoint para eliminar un book guardado por un usuario
-exports.deleteSavedBook = (req, res) => {
+// Endpoint para guardar un libro
+exports.saveBook = async (req, res) => {
   const { user_id, book_id } = req.body;
 
-  // Verificar si user_id y book_id están presentes
   if (!user_id || !book_id) {
-    return res.status(400).json({ success: false, message: "user_id y book_id son requeridos." });
+    return res.status(400).json({ success: false, message: "Faltan datos requeridos" });
   }
 
-  // Consulta para eliminar el book guardado del usuario
-  const sqlQuery = `
-    DELETE FROM user_savedbooks 
-    WHERE user_id = ? AND book_id = ?
-  `;
+  try {
+    const sqlCheck = "SELECT * FROM user_savedbooks WHERE user_id = ? AND book_id = ?";
+    const [existing] = await db.query(sqlCheck, [user_id, book_id]);
 
-  db.query(sqlQuery, [user_id, book_id], (err, result) => {
-    if (err) {
-      console.error("Error al eliminar el book guardado:", err);
-      return res.status(500).json({ success: false, message: "Error al eliminar el book guardado." });
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: "Libro ya guardado." });
     }
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: "Libro no encontrado o ya fue eliminado." });
-    }
+    const sqlInsert = "INSERT INTO user_savedbooks (user_id, book_id) VALUES (?, ?)";
+    await db.query(sqlInsert, [user_id, book_id]);
 
-    res.status(200).json({ success: true, message: "Libro eliminado exitosamente." });
-  });
+    res.status(200).json({ success: true, message: "Libro guardado exitosamente." });
+  } catch (error) {
+    console.error("Error al guardar el libro:", error);
+    res.status(500).json({ success: false, message: "Error interno del servidor" });
+  }
 };
 
-// Endpoint para obtener libros subidos por un usuario
-exports.getBooksByUser = (req, res) => {
+// Endpoint para obtener los libros guardados por un usuario
+exports.getSavedBooks = async (req, res) => {
   const { user_id } = req.params;
 
   // Validación básica
   if (!user_id) {
+    return res
+      .status(400)
+      .json({ success: false, message: "El user_id es requerido." });
+  }
+
+  try {
+    const sqlQuery = `
+      SELECT books.*
+      FROM books
+      INNER JOIN user_books ON books.id = user_books.book_id
+      WHERE user_books.user_id = ?
+    `;
+
+    const [results] = await db.query(sqlQuery, [user_id]);
+
+    res.status(200).json({ success: true, books: results });
+  } catch (err) {
+    console.error("Error al obtener los libros guardados:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Error al obtener los libros guardados." });
+  }
+};
+
+// Endpoint para eliminar un libro guardado por un usuario
+exports.deleteSavedBook = async (req, res) => {
+  const { user_id, book_id } = req.body;
+
+  // Validación básica
+  if (!user_id || !book_id) {
+    return res
+      .status(400)
+      .json({ success: false, message: "user_id y book_id son requeridos." });
+  }
+
+  try {
+    const sqlQuery = `
+      DELETE FROM user_savedbooks 
+      WHERE user_id = ? AND book_id = ?
+    `;
+
+    const [result] = await db.query(sqlQuery, [user_id, book_id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Libro no encontrado o ya fue eliminado.",
+      });
+    }
+
+    res
+      .status(200)
+      .json({ success: true, message: "Libro eliminado exitosamente." });
+  } catch (err) {
+    console.error("Error al eliminar el libro guardado:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor.",
+    });
+  }
+};
+
+// Endpoint para obtener libros subidos por un usuario
+exports.getBooksByUser = async (req, res) => {
+  const { user_id } = req.params;
+
+  // Validación
+  if (!user_id) {
     return res.status(400).json({
+      success: false,
       message: "El campo 'user_id' es obligatorio.",
     });
   }
 
-  // Consulta para obtener los libros del usuario
-  const query = `SELECT * FROM books WHERE user_id = ?`;
-  
-  db.query(query, [user_id], (err, results) => {
-    if (err) {
-      console.error("Error al obtener los libros:", err);
-      return res.status(500).json({ message: "Error al obtener los libros." });
-    }
+  try {
+    const query = `SELECT * FROM books WHERE user_id = ?`;
+    const [results] = await db.query(query, [user_id]);
 
     res.status(200).json({
+      success: true,
       message: "Libros obtenidos exitosamente.",
-      books: results
+      books: results,
     });
-  });
+  } catch (err) {
+    console.error("Error al obtener los libros del usuario:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor al obtener los libros.",
+    });
+  }
 };
 
+
 // Endpoint para eliminar un book
-exports.deleteBook = (req, res) => {
+exports.deleteBook = async (req, res) => {
   const { book_id } = req.params;
+  const { user_id } = req.body; // user_id viene en body
 
   // Validación básica
-  if (!book_id) {
+  if (!book_id || !user_id) {
     return res.status(400).json({
-      message: "Se requiere el ID del libro para eliminarlo.",
+      success: false,
+      message: "Se requieren el ID del libro y el ID del usuario para eliminarlo.",
     });
   }
 
-  // Consulta para eliminar el libro de la base de datos
-  const query = `DELETE FROM books WHERE id = ?`;
-  
-  db.query(query, [book_id], (err, results) => {
-    if (err) {
-      console.error("Error al eliminar el libro:", err);
-      return res.status(500).json({ message: "Error al eliminar el libro." });
+  try {
+    // Verificar que el libro pertenezca al usuario
+    const query = "SELECT * FROM books WHERE id = ? AND user_id = ?";
+    const [result] = await db.query(query, [book_id, user_id]);
+
+    if (result.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: "No tienes permiso para eliminar este libro.",
+      });
     }
 
-    if (results.affectedRows === 0) {
-      return res.status(404).json({ message: "Libro no encontrado." });
+    // Si es dueño, eliminar el libro
+    const queryDelete = "DELETE FROM books WHERE id = ?";
+    const [resultDelete] = await db.query(queryDelete, [book_id]);
+
+    if (resultDelete.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Libro no encontrado.",
+      });
     }
 
-    res.status(200).json({ message: "Libro eliminado exitosamente." });
-  });
+    res.status(200).json({
+      success: true,
+      message: "Libro eliminado exitosamente.",
+    });
+  } catch (err) {
+    console.error("Error al eliminar el libro:", err);
+    res.status(500).json({
+      success: false,
+      message: "Error interno del servidor al eliminar el libro.",
+    });
+  }
 };
+
+
