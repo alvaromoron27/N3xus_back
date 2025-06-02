@@ -319,7 +319,10 @@ exports.editUsername = async (req, res) => {
     if (results.affectedRows === 0) {
       return res.status(404).send("Usuario no encontrado");
     }
-    res.status(200).send("Nombre de usuario modificado correctamente");
+    res.status(200).send({
+      res: "Nombre de usuario modificado correctamente",
+      Usuario: username
+    });
   } catch (error) {
     console.error("Error al modificar nombre de usuario:", error);
     res.status(500).send("Error interno del servidor");
@@ -336,7 +339,10 @@ exports.editName = async (req, res) => {
     if (results.affectedRows === 0) {
       return res.status(404).send("Usuario no encontrado");
     }
-    res.status(200).send("Nombre modificado correctamente");
+    res.status(200).send({
+      res: "Nombre modificado correctamente",
+      Nombre: name
+    });
   } catch (error) {
     console.error("Error al modificar nombre:", error);
     res.status(500).send("Error interno del servidor");
@@ -353,7 +359,10 @@ exports.editSurname = async (req, res) => {
     if (results.affectedRows === 0) {
       return res.status(404).send("Usuario no encontrado");
     }
-    res.status(200).send("Apellido modificado correctamente");
+    res.status(200).send({
+      res: "Apellido modificado correctamente",
+      Apellidos: surname
+    });
   } catch (error) {
     console.error("Error al modificar apellido:", error);
     res.status(500).send("Error interno del servidor");
@@ -378,7 +387,10 @@ exports.editEmail = async (req, res) => {
     if (results.affectedRows === 0) {
       return res.status(404).send("Usuario no encontrado");
     }
-    res.status(200).send("Email modificado correctamente");
+    res.status(200).send({
+      res: "Email modificado correctamente",
+      Correo: email
+    });
   } catch (error) {
     console.error("Error al modificar Email:", error);
     res.status(500).send("Error interno del servidor");
