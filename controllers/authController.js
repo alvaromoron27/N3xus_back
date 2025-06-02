@@ -305,15 +305,82 @@ exports.resetPassword = async (req, res) => {
 exports.editUsername = async (req, res) => {
   const { user_id, username } = req.body;
   try {
+    // Verificar si el nombre de usuario ya existe para otro usuario
+    const checkQuery = "SELECT id FROM users WHERE usuario = ? AND id != ?";
+    const [existingUser] = await db.query(checkQuery, [username, user_id]);
+
+    if (existingUser.length > 0) {
+      return res.status(400).send("Ese nombre de usuario ya está en uso");
+    }
+
     const query = "UPDATE users SET usuario = ? WHERE id = ?";
     const [results] = await db.query(query, [username, user_id]);
 
     if (results.affectedRows === 0) {
       return res.status(404).send("Usuario no encontrado");
     }
-    res.status(200).send("Nombre de usuario editado con exito");
+    res.status(200).send("Nombre de usuario modificado correctamente");
   } catch (error) {
-    console.error("Error al editar el nombre de usuario:", error);
+    console.error("Error al modificar nombre de usuario:", error);
+    res.status(500).send("Error interno del servidor");
+  }
+};
+
+// Endpoint para editar el nombre
+exports.editName = async (req, res) => {
+  const { user_id, name } = req.body;
+  try {
+    const query = "UPDATE users SET nombre = ? WHERE id = ?";
+    const [results] = await db.query(query, [name, user_id]);
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send("Usuario no encontrado");
+    }
+    res.status(200).send("Nombre modificado correctamente");
+  } catch (error) {
+    console.error("Error al modificar nombre:", error);
+    res.status(500).send("Error interno del servidor");
+  }
+};
+
+// Endpoint para editar el apellido
+exports.editSurname = async (req, res) => {
+  const { user_id, surname } = req.body;
+  try {
+    const query = "UPDATE users SET apellidos = ? WHERE id = ?";
+    const [results] = await db.query(query, [surname, user_id]);
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send("Usuario no encontrado");
+    }
+    res.status(200).send("Apellido modificado correctamente");
+  } catch (error) {
+    console.error("Error al modificar apellido:", error);
+    res.status(500).send("Error interno del servidor");
+  }
+};
+
+// Endpoint para editar un email
+exports.editEmail = async (req, res) => {
+  const { user_id, email } = req.body;
+  try {
+    // Verificar si el nombre de usuario ya existe para otro usuario
+    const checkQuery = "SELECT id FROM users WHERE email = ? AND id != ?";
+    const [existingUser] = await db.query(checkQuery, [email, user_id]);
+
+    if (existingUser.length > 0) {
+      return res.status(400).send("Ese correo electrónico ya está en uso");
+    }
+
+    const query = "UPDATE users SET email = ? WHERE id = ?";
+    const [results] = await db.query(query, [email, user_id]);
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send("Usuario no encontrado");
+    }
+    res.status(200).send("Email modificado correctamente");
+  } catch (error) {
+    console.error("Error al modificar Email:", error);
     res.status(500).send("Error interno del servidor");
   }
 };

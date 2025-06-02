@@ -16,6 +16,6 @@ const bookRoutes = require('./routes/bookRoutes');
 app.use('/api', authRoutes);
 app.use('/api', bookRoutes);
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });

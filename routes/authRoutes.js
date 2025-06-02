@@ -9,6 +9,9 @@ router.post('/reset', authController.reset);
 router.post('/reset-password', authController.resetPassword);
 router.post('/confirm-account', authController.confirmAccount);
 router.post('/edit-username', authController.editUsername);
+router.post('/edit-name', authController.editName);
+router.post('/edit-surname', authController.editSurname);
+router.post('/edit-email', authController.editEmail);
 router.delete('/delete-account', authController.deleteAccount);
 
 module.exports = router;
