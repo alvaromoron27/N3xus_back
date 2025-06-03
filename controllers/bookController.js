@@ -21,8 +21,7 @@ exports.addBook = async (req, res) => {
     !categoria ||
     !numero_paginas ||
     !portada ||
-    !publicacion_original ||
-    !user_id
+    !publicacion_original
   ) {
     return res.status(400).json({
       message: "Todos los campos obligatorios deben estar presentes.",
@@ -52,6 +51,95 @@ exports.addBook = async (req, res) => {
     res.status(201).json({ message: "Libro agregado exitosamente." });
   } catch (err) {
     console.error("Error al agregar el libro:", err);
+    res
+      .status(500)
+      .json({ message: "Error interno del servidor al agregar el libro." });
+  }
+};
+
+// Endpoint para agregar un nuevo ebook
+exports.editBook = async (req, res) => {
+  const {
+    titulo,
+    descripcion,
+    autor,
+    categoria,
+    numero_paginas,
+    portada,
+    publicacion_original,
+    created_at,
+    user_id,
+  } = req.body;
+
+  const { book_id } = req.params;
+
+  // Validación básica
+  if (
+    !titulo ||
+    !descripcion ||
+    !autor ||
+    !categoria ||
+    !numero_paginas ||
+    !portada ||
+    !publicacion_original
+  ) {
+    return res.status(400).json({
+      message: "Todos los campos obligatorios deben estar presentes.",
+    });
+  }
+
+  try {
+    const query = `
+  UPDATE books SET
+    titulo = ?,
+    descripcion = ?,
+    autor = ?,
+    categoria = ?,
+    numero_paginas = ?,
+    portada = ?,
+    publicacion_original = ?,
+    created_at = ?
+  WHERE id = ? AND user_id = ?
+`;
+
+    const values = [
+      titulo,
+      descripcion,
+      autor,
+      categoria,
+      numero_paginas,
+      portada,
+      publicacion_original,
+      created_at,
+      book_id,
+      user_id,
+    ];
+
+    const [result] = await db.query(query, values);
+
+    if (result.affectedRows === 0) {
+      return res.status(403).json({
+        message: "No tienes permiso para editar este libro o no existe.",
+      });
+    }
+
+    res.status(200).json({
+      message: "Libro editado correctamente!",
+      updatedBook: {
+        id: book_id,
+        titulo,
+        descripcion,
+        autor,
+        categoria,
+        numero_paginas,
+        portada,
+        publicacion_original,
+        created_at,
+        user_id,
+      },
+    });
+  } catch (err) {
+    console.error("Error al editar el libro:", err);
     res
       .status(500)
       .json({ message: "Error interno del servidor al agregar el libro." });
@@ -112,24 +200,34 @@ exports.saveBook = async (req, res) => {
   const { user_id, book_id } = req.body;
 
   if (!user_id || !book_id) {
-    return res.status(400).json({ success: false, message: "Faltan datos requeridos" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Faltan datos requeridos" });
   }
 
   try {
-    const sqlCheck = "SELECT * FROM user_savedbooks WHERE user_id = ? AND book_id = ?";
+    const sqlCheck =
+      "SELECT * FROM user_savedbooks WHERE user_id = ? AND book_id = ?";
     const [existing] = await db.query(sqlCheck, [user_id, book_id]);
 
     if (existing.length > 0) {
-      return res.status(400).json({ success: false, message: "Libro ya guardado." });
+      return res
+        .status(400)
+        .json({ success: false, message: "Libro ya guardado." });
     }
 
-    const sqlInsert = "INSERT INTO user_savedbooks (user_id, book_id) VALUES (?, ?)";
+    const sqlInsert =
+      "INSERT INTO user_savedbooks (user_id, book_id) VALUES (?, ?)";
     await db.query(sqlInsert, [user_id, book_id]);
 
-    res.status(200).json({ success: true, message: "Libro guardado exitosamente." });
+    res
+      .status(200)
+      .json({ success: true, message: "Libro guardado exitosamente." });
   } catch (error) {
     console.error("Error al guardar el libro:", error);
-    res.status(500).json({ success: false, message: "Error interno del servidor" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error interno del servidor" });
   }
 };
 
@@ -157,9 +255,10 @@ exports.getSavedBooks = async (req, res) => {
     res.status(200).json({ success: true, books: results });
   } catch (err) {
     console.error("Error al obtener los libros guardados:", err);
-    res
-      .status(500)
-      .json({ success: false, message: "Error al obtener los libros guardados." });
+    res.status(500).json({
+      success: false,
+      message: "Error al obtener los libros guardados.",
+    });
   }
 };
 
@@ -231,7 +330,6 @@ exports.getBooksByUser = async (req, res) => {
   }
 };
 
-
 // Endpoint para eliminar un book
 exports.deleteBook = async (req, res) => {
   const { book_id } = req.params;
@@ -241,7 +339,8 @@ exports.deleteBook = async (req, res) => {
   if (!book_id || !user_id) {
     return res.status(400).json({
       success: false,
-      message: "Se requieren el ID del libro y el ID del usuario para eliminarlo.",
+      message:
+        "Se requieren el ID del libro y el ID del usuario para eliminarlo.",
     });
   }
 
@@ -280,5 +379,3 @@ exports.deleteBook = async (req, res) => {
     });
   }
 };
-
-

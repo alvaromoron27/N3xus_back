@@ -3,6 +3,7 @@ const router = express.Router();
 const bookController = require('../controllers/bookController');
 
 router.post('/addBook', bookController.addBook);
+router.post('/editBook/:book_id', bookController.editBook);
 router.post('/save-book', bookController.saveBook);
 router.get('/getSavedBooks/:user_id', bookController.getSavedBooks);
 router.get('/allBooks', bookController.getAllBooks);
