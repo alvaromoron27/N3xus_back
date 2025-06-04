@@ -269,6 +269,14 @@ exports.resetPassword = async (req, res) => {
       .json({ message: "Se requieren el token y la nueva contraseña" });
   }
 
+ // Comprobar si existe la dirección de correo electrónico
+const emailQuery = "SELECT email FROM users WHERE email = ?";
+const [emailResults] = await db.query(emailQuery, [req.body.email]);
+
+if (emailResults.length === 0) {
+  return res.status(404).json({ message: "Correo no encontrado." });
+}
+
   try {
     // Buscar el token en la base de datos
     const query =
@@ -401,10 +409,16 @@ exports.editEmail = async (req, res) => {
 exports.deleteAccount = async (req, res) => {
   const userId = req.body.userId;
   try {
-    const query = "DELETE FROM users WHERE id = ?";
-    const [results] = await db.query(query, [userId]);
+    // Primero, desvincular los libros subidos por el usuario
+    const query = "UPDATE books SET user_id = 1 WHERE user_id = ?";
+    await db.query(query, [userId]);
+
+    // Luego, eliminar al usuario
+    const deleteQuery = "DELETE FROM users WHERE id = ?";
+    const [results] = await db.query(deleteQuery, [userId]);
+
     // Este endpoint solo es accesible desde el perfil de un usuario autenticado
-    // Por eso asumimos que `userId` siempre es válido
+    // Por eso se asume que `userId` siempre es válido
     res.status(200).send("Cuenta eliminada con éxito");
   } catch (error) {
     console.error("Error al eliminar la cuenta:", error);
