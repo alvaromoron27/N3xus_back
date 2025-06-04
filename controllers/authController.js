@@ -54,14 +54,20 @@ exports.register = async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    res.status(201).send("Usuario registrado con éxito. Por favor, verifica tu correo.");
+    res
+      .status(201)
+      .send("Usuario registrado con éxito. Por favor, verifica tu correo.");
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       if (err.message.includes("email")) {
-        return res.status(409).json({ message: "El correo electrónico ya está registrado." });
+        return res
+          .status(409)
+          .json({ message: "El correo electrónico ya está registrado." });
       }
       if (err.message.includes("usuario")) {
-        return res.status(409).json({ message: "El nombre de usuario ya está registrado." });
+        return res
+          .status(409)
+          .json({ message: "El nombre de usuario ya está registrado." });
       }
     }
 
@@ -72,61 +78,49 @@ exports.register = async (req, res) => {
 
 // Endpoint para reenviar el correo de confirmación
 exports.resendConfirmation = async (req, res) => {
-  const { correo } = req.body;
+  const { identificador } = req.body;
 
-  if (!correo) {
-    return res.status(400).json({ message: "El correo es obligatorio" });
+  if (!identificador) {
+    return res.status(400).json({ message: "El identificador es obligatorio" });
   }
 
   try {
-    // Consulta para obtener el usuario por correo electrónico
-    const query = "SELECT * FROM users WHERE email = ?";
-    db.query(query, [correo], async (err, results) => {
-      if (err) {
-        console.error("Error buscando usuario:", err);
-        return res.status(500).json({ message: "Error interno del servidor" });
-      }
+    const esEmail = identificador.includes("@");
+    const query = esEmail
+      ? "SELECT * FROM users WHERE email = ?"
+      : "SELECT * FROM users WHERE usuario = ?";
+    const [results] = await db.query(query, [identificador]);
 
-      if (results.length === 0) {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
 
-      const usuario = results[0];
+    const usuario = results[0];
 
-      // Verificar si la cuenta ya está confirmada
-      if (usuario.confirmado === 1) {
-        return res
-          .status(400)
-          .json({ message: "La cuenta ya está confirmada." });
-      }
+    if (usuario.confirmado === 1) {
+      return res.status(400).json({ message: "La cuenta ya está confirmada." });
+    }
 
-      // Generar un nuevo token de confirmación
-      const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
-        expiresIn: "1h",
-      });
+    const correo = usuario.email;
 
-      // Configuración del correo
-      const mailOptions = {
-        from: process.env.EMAIL,
-        to: correo,
-        subject: "🔐Confirma tu cuenta - Reenvío🔐",
-        text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
-      };
+    const token = jwt.sign({ correo }, process.env.JWT_SECRET_CONFIRM, {
+      expiresIn: "1h",
+    });
 
-      // Enviar el correo de confirmación
-      try {
-        await transporter.sendMail(mailOptions);
-        res.status(200).json({
-          message:
-            "Correo de confirmación reenviado. Por favor, verifica tu bandeja de entrada.",
-        });
-      } catch (emailError) {
-        console.error("Error enviando el correo:", emailError);
-        res.status(500).json({
-          message:
-            "Error interno del servidor al enviar el correo de confirmación.",
-        });
-      }
+    const mailOptions = {
+      from: process.env.EMAIL,
+      to: correo,
+      subject: "🔐Confirma tu cuenta - Reenvío🔐",
+      text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log("Correo enviado correctamente");
+
+    res.status(200).json({
+      message:
+        "Correo de confirmación reenviado. Por favor, verifica tu bandeja de entrada.",
     });
   } catch (error) {
     console.error("Error procesando la solicitud:", error);
@@ -135,26 +129,18 @@ exports.resendConfirmation = async (req, res) => {
 };
 
 // Endpoint para confirmar la cuenta
-exports.confirmAccount = (req, res) => {
+exports.confirmAccount = async (req, res) => {
   const { token } = req.body;
 
   try {
     const { correo } = jwt.verify(token, process.env.JWT_SECRET_CONFIRM);
 
     const query = "UPDATE users SET confirmado = 1 WHERE email = ?";
-    db.query(query, [correo], (err, results) => {
-      if (err) {
-        console.error(
-          "Error actualizando el usuario en la base de datos:",
-          err
-        );
-        return res.status(500).send("Error interno del servidor");
-      }
+    const [results] = await db.query(query, [correo]);
 
-      res.status(200).json({
-        message:
-          "Cuenta confirmada correctamente, ya puedes cerrar esta pestaña e iniciar sesión.",
-      });
+    res.status(200).json({
+      message:
+        "Cuenta confirmada correctamente, ya puedes cerrar esta pestaña e iniciar sesión.",
     });
   } catch (error) {
     console.error("Error verificando el token:", error);
@@ -186,8 +172,7 @@ exports.login = async (req, res) => {
     // Verificar si la cuenta está confirmada
     if (usuario.confirmado !== 1) {
       return res.status(403).json({
-        message:
-          "La cuenta no ha sido confirmada.",
+        message: "La cuenta no ha sido confirmada.",
         unconfirmed: true,
       });
     }
@@ -269,14 +254,6 @@ exports.resetPassword = async (req, res) => {
       .json({ message: "Se requieren el token y la nueva contraseña" });
   }
 
- // Comprobar si existe la dirección de correo electrónico
-const emailQuery = "SELECT email FROM users WHERE email = ?";
-const [emailResults] = await db.query(emailQuery, [req.body.email]);
-
-if (emailResults.length === 0) {
-  return res.status(404).json({ message: "Correo no encontrado." });
-}
-
   try {
     // Buscar el token en la base de datos
     const query =
@@ -302,7 +279,6 @@ if (emailResults.length === 0) {
     await db.query(updateQuery, [hashedPassword, email]);
 
     res.status(200).send("Contraseña actualizada correctamente");
-
   } catch (error) {
     console.error("Error al restablecer la contraseña:", error);
     res.status(500).send("Error interno del servidor");
@@ -329,7 +305,7 @@ exports.editUsername = async (req, res) => {
     }
     res.status(200).send({
       res: "Nombre de usuario modificado correctamente",
-      Usuario: username
+      Usuario: username,
     });
   } catch (error) {
     console.error("Error al modificar nombre de usuario:", error);
@@ -349,7 +325,7 @@ exports.editName = async (req, res) => {
     }
     res.status(200).send({
       res: "Nombre modificado correctamente",
-      Nombre: name
+      Nombre: name,
     });
   } catch (error) {
     console.error("Error al modificar nombre:", error);
@@ -369,7 +345,7 @@ exports.editSurname = async (req, res) => {
     }
     res.status(200).send({
       res: "Apellido modificado correctamente",
-      Apellidos: surname
+      Apellidos: surname,
     });
   } catch (error) {
     console.error("Error al modificar apellido:", error);
@@ -397,7 +373,7 @@ exports.editEmail = async (req, res) => {
     }
     res.status(200).send({
       res: "Email modificado correctamente",
-      Correo: email
+      Correo: email,
     });
   } catch (error) {
     console.error("Error al modificar Email:", error);
