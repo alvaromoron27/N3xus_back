@@ -263,6 +263,14 @@ exports.login = async (req, res) => {
       `;
       const [booksSaved] = await db.query(queryBooks, [usuario.id]);
 
+      // Actualizamos la fecha de la última conexión
+      const updateUltimaConexion = `
+  UPDATE users 
+  SET ultima_conexion = NOW() 
+  WHERE id = ?
+`;
+      await db.query(updateUltimaConexion, [usuario.id]);
+
       // Responder con la información del usuario y los libros guardados
       res.status(200).json({
         Id: usuario.id,
@@ -315,7 +323,7 @@ exports.reset = async (req, res) => {
       from: process.env.EMAIL,
       to: email,
       subject: "Recuperación de contraseña",
-      text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: http://localhost:3000/reset-password/${token}`,
+      text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: http://localhost:3000/reset-password/${token} el enlace expirará en 30 minutos.`,
     };
 
     await transporter.sendMail(mailOptions);
@@ -324,6 +332,39 @@ exports.reset = async (req, res) => {
   } catch (error) {
     console.error("Error en el proceso de recuperación:", error);
     res.status(500).json({ message: "Error interno del servidor." });
+  }
+};
+
+// Endpoint GET para verificar validez del token
+exports.verifyResetToken = async (req, res) => {
+  const { token } = req.params;
+
+  if (!token) {
+    return res.status(400).json({ message: "Token requerido" });
+  }
+
+  try {
+    const query = `
+      SELECT resetTokenExpiration 
+      FROM users 
+      WHERE resetToken = ?
+    `;
+    const [results] = await db.query(query, [token]);
+
+    if (
+      !results.length ||
+      !results[0].resetTokenExpiration ||
+      results[0].resetTokenExpiration < Date.now()
+    ) {
+      return res.status(401).json({ message: "Token expirado" });
+    } else if(token && token.length !== 64){
+      return res.status(401).json({ message: "Token inválido" });
+    }
+
+    return res.status(200).json({ message: "Token válido" });
+  } catch (error) {
+    console.error("Error al verificar el token:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
   }
 };
 
@@ -342,10 +383,6 @@ exports.resetPassword = async (req, res) => {
     const query =
       "SELECT email, resetTokenExpiration FROM users WHERE resetToken = ?";
     const [results] = await db.query(query, [token]);
-
-    if (!results.length || results[0].resetTokenExpiration < Date.now()) {
-      return res.status(401).json({ message: "Token inválido o expirado" });
-    }
 
     const { email } = results[0];
 

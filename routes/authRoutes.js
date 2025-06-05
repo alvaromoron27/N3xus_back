@@ -6,6 +6,7 @@ router.post('/register', authController.register);
 router.post('/resend-confirmation', authController.resendConfirmation);
 router.post('/login', authController.login);
 router.post('/reset', authController.reset);
+router.get("/verify-reset-token/:token", authController.verifyResetToken);
 router.post('/reset-password', authController.resetPassword);
 router.post('/confirm-account', authController.confirmAccount);
 router.post('/edit-username', authController.editUsername);
