@@ -164,10 +164,19 @@ exports.login = async (req, res) => {
     const [results] = await db.query(query, [identificador, identificador]);
 
     if (results.length === 0) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(401).json({ message: "Credenciales inválidas" });
     }
 
     const usuario = results[0];
+
+    // Verificamos si la cuenta esta bloqueada
+    const ahora = new Date();
+    if (usuario.bloqueado_hasta && new Date(usuario.bloqueado_hasta) > ahora) {
+      return res.status(403).json({
+        message: `Intentelo de nuevo mas tarde`,
+        bloqueado: true,
+      });
+    }
 
     // Verificar si la cuenta está confirmada
     if (usuario.confirmado !== 1) {
@@ -176,31 +185,105 @@ exports.login = async (req, res) => {
         unconfirmed: true,
       });
     }
+
     // Verificar la contraseña
     const match = await bcrypt.compare(contraseña, usuario.contraseña);
-    if (!match) {
-      return res.status(401).json({ message: "Credenciales inválidas" });
-    }
 
-    // Si la contraseña es correcta, obtener los libros guardados por el usuario
-    const queryBooks = `
+    if (!match) {
+      // Verificar datos actuales antes de actualizar
+      const [updated] = await db.query(
+        "SELECT intentos_fallidos, baneos_totales, ultimo_acceso_incorrecto FROM users WHERE id = ?",
+        [usuario.id]
+      );
+
+      let { intentos_fallidos, baneos_totales, ultimo_acceso_incorrecto } =
+        updated[0];
+
+      // Verificar si el último intento fue hace más de 1 hora
+      const ahora = new Date();
+      const umbralTiempo = 60 * 60 * 1000;
+
+      if (
+        ultimo_acceso_incorrecto &&
+        ahora - new Date(ultimo_acceso_incorrecto) > umbralTiempo
+      ) {
+        // Reiniciamos los intentos fallidos
+        await db.query(
+          `UPDATE users 
+     SET intentos_fallidos = 1, 
+         ultimo_acceso_incorrecto = NOW() 
+     WHERE id = ?`,
+          [usuario.id]
+        );
+        intentos_fallidos = 1;
+      } else {
+        // Aumentamos los intentos fallidos normalmente
+        await db.query(
+          `UPDATE users 
+     SET intentos_fallidos = intentos_fallidos + 1, 
+         ultimo_acceso_incorrecto = NOW() 
+     WHERE id = ?`,
+          [usuario.id]
+        );
+        intentos_fallidos += 1;
+      }
+
+      // Evaluamos el número de intentos fallidos y si se da el caso aplicamos un baneo
+      if (intentos_fallidos >= 5) {
+        const nuevoBaneo = baneos_totales + 1;
+        const minutosBloqueo = Math.min(nuevoBaneo * 5, 60);
+        const bloqueadoHasta = new Date(
+          Date.now() + minutosBloqueo * 60 * 1000
+        );
+
+        const applyBanQuery = `
+          UPDATE users 
+          SET 
+            baneos_totales = ?, 
+            bloqueado_hasta = ?,
+            intentos_fallidos = 0
+          WHERE id = ?
+        `;
+        await db.query(applyBanQuery, [nuevoBaneo, bloqueadoHasta, usuario.id]);
+
+        return res.status(403).json({
+          message: `Intentelo de nuevo mas tarde.`,
+          bloqueado: true,
+        });
+      }
+
+      return res.status(401).json({ message: "Credenciales inválidas" });
+    } else {
+      // Si la contraseña es correcta, obtener los libros guardados por el usuario
+      const queryBooks = `
         SELECT books.* 
         FROM books
         INNER JOIN user_savedbooks ON books.id = user_savedbooks.book_id
         WHERE user_savedbooks.user_id = ?
       `;
-    const [booksSaved] = await db.query(queryBooks, [usuario.id]);
+      const [booksSaved] = await db.query(queryBooks, [usuario.id]);
 
-    // Responder con la información del usuario y los libros guardados
-    res.status(200).json({
-      Id: usuario.id,
-      Usuario: usuario.usuario,
-      Nombre: usuario.nombre,
-      Apellidos: usuario.apellidos,
-      Correo: usuario.email,
-      Fecha_de_creacion: usuario.fecha_creacion,
-      LibrosGuardados: booksSaved,
-    });
+      // Responder con la información del usuario y los libros guardados
+      res.status(200).json({
+        Id: usuario.id,
+        Usuario: usuario.usuario,
+        Nombre: usuario.nombre,
+        Apellidos: usuario.apellidos,
+        Correo: usuario.email,
+        Fecha_de_creacion: usuario.fecha_creacion,
+        LibrosGuardados: booksSaved,
+      });
+
+      const queryResetFailedAttempt = `
+        UPDATE users 
+        SET 
+          intentos_fallidos = 0,
+          bloqueado_hasta = NULL
+        WHERE id = ?
+      `;
+
+      await db.query(queryResetFailedAttempt, [usuario.id]);
+    }
   } catch (error) {
     console.error("Error al iniciar sesión:", error);
     res.status(500).json({ message: "Error interno del servidor" });
