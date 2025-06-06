@@ -274,6 +274,7 @@ exports.login = async (req, res) => {
       // Responder con la información del usuario y los libros guardados
       res.status(200).json({
         Id: usuario.id,
+        Avatar: usuario.avatar_url,
         Usuario: usuario.usuario,
         Nombre: usuario.nombre,
         Apellidos: usuario.apellidos,

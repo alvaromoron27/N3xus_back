@@ -1,34 +1,40 @@
 const db = require("../config/db");
 
-// Endpoint para agregar un nuevo ebook
+// Endpoint para agregar un nuevo libro
 exports.addBook = async (req, res) => {
-  const {
-    titulo,
-    descripcion,
-    autor,
-    categoria,
-    numero_paginas,
-    portada,
-    publicacion_original,
-    user_id,
-  } = req.body;
-
-  // Validación básica
-  if (
-    !titulo ||
-    !descripcion ||
-    !autor ||
-    !categoria ||
-    !numero_paginas ||
-    !portada ||
-    !publicacion_original
-  ) {
-    return res.status(400).json({
-      message: "Todos los campos obligatorios deben estar presentes.",
-    });
-  }
-
   try {
+    const {
+      titulo,
+      descripcion,
+      autor,
+      categoria,
+      numero_paginas,
+      publicacion_original,
+      user_id,
+    } = req.body;
+
+    if (
+      !titulo ||
+      !descripcion ||
+      !autor ||
+      !categoria ||
+      !numero_paginas ||
+      !publicacion_original
+    ) {
+      return res.status(400).json({
+        message: "Todos los campos obligatorios deben estar presentes.",
+      });
+    }
+
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ message: "No se recibió ninguna portada." });
+    }
+
+    // Aquí está la URL remota subida a Cloudinary gracias a multer
+    const portadaUrl = req.file.path;
+
     const query = `
       INSERT INTO books 
       (titulo, descripcion, autor, categoria, numero_paginas, portada, publicacion_original, user_id) 
@@ -41,7 +47,7 @@ exports.addBook = async (req, res) => {
       autor,
       categoria,
       numero_paginas,
-      portada,
+      portadaUrl,
       publicacion_original,
       user_id,
     ];
@@ -57,7 +63,7 @@ exports.addBook = async (req, res) => {
   }
 };
 
-// Endpoint para agregar un nuevo ebook
+// Endpoint para editar un libro
 exports.editBook = async (req, res) => {
   const {
     titulo,
@@ -65,9 +71,7 @@ exports.editBook = async (req, res) => {
     autor,
     categoria,
     numero_paginas,
-    portada,
     publicacion_original,
-    created_at,
     user_id,
   } = req.body;
 
@@ -80,7 +84,6 @@ exports.editBook = async (req, res) => {
     !autor ||
     !categoria ||
     !numero_paginas ||
-    !portada ||
     !publicacion_original
   ) {
     return res.status(400).json({
@@ -89,6 +92,20 @@ exports.editBook = async (req, res) => {
   }
 
   try {
+    // Si no se ha subido una nueva portada, obtenemos la actual de la DB
+    let portadaUrl;
+    if (req.file) {
+      portadaUrl = req.file.path; // Imagen nueva subida a Cloudinary
+    } else {
+      const [rows] = await db.query("SELECT portada FROM books WHERE id = ?", [book_id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "Libro no encontrado." });
+      }
+      portadaUrl = rows[0].portada; // Mantenemos la existente
+    }
+
+    const created_at = new Date();
+
     const query = `
   UPDATE books SET
     titulo = ?,
@@ -108,7 +125,7 @@ exports.editBook = async (req, res) => {
       autor,
       categoria,
       numero_paginas,
-      portada,
+      portadaUrl,
       publicacion_original,
       created_at,
       book_id,
@@ -132,7 +149,7 @@ exports.editBook = async (req, res) => {
         autor,
         categoria,
         numero_paginas,
-        portada,
+        portada: portadaUrl,
         publicacion_original,
         created_at,
         user_id,

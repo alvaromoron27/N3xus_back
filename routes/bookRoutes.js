@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const bookController = require('../controllers/bookController');
+const { upload } = require('../config/multer');
 
-router.post('/addBook', bookController.addBook);
-router.post('/editBook/:book_id', bookController.editBook);
+router.post('/addBook', upload.single('portada'), bookController.addBook);
+router.post('/editBook/:book_id', upload.single('portada'), bookController.editBook);
 router.post('/save-book', bookController.saveBook);
 router.get('/getSavedBooks/:user_id', bookController.getSavedBooks);
 router.get('/allBooks', bookController.getAllBooks);
