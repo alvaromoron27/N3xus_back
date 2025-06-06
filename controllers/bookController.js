@@ -65,7 +65,7 @@ exports.addBook = async (req, res) => {
 
 // Endpoint para editar un libro
 exports.editBook = async (req, res) => {
-  const {
+  let {
     titulo,
     descripcion,
     autor,
@@ -75,7 +75,12 @@ exports.editBook = async (req, res) => {
     user_id,
   } = req.body;
 
-  const { book_id } = req.params;
+  let { book_id } = req.params;
+
+  // Conversión explícita de tipos numéricos
+  book_id = Number(book_id);
+  user_id = Number(user_id);
+  numero_paginas = Number(numero_paginas);
 
   // Validación básica
   if (
@@ -83,8 +88,10 @@ exports.editBook = async (req, res) => {
     !descripcion ||
     !autor ||
     !categoria ||
-    !numero_paginas ||
-    !publicacion_original
+    isNaN(numero_paginas) ||
+    !publicacion_original ||
+    isNaN(user_id) ||
+    isNaN(book_id)
   ) {
     return res.status(400).json({
       message: "Todos los campos obligatorios deben estar presentes.",
