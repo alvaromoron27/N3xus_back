@@ -10,6 +10,7 @@ router.post('/reset', authController.reset);
 router.get("/verify-reset-token/:token", authController.verifyResetToken);
 router.post('/reset-password', authController.resetPassword);
 router.post('/confirm-account', authController.confirmAccount);
+router.post('/edit-avatar', upload.single('avatar'), authController.editAvatar);
 router.post('/edit-username', authController.editUsername);
 router.post('/edit-name', authController.editName);
 router.post('/edit-surname', authController.editSurname);

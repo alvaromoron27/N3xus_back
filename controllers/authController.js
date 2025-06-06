@@ -406,6 +406,44 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+exports.editAvatar = async (req, res) => {
+  const { user_id } = req.body;
+
+  if (!user_id) {
+    return res.status(400).json({ message: "Falta el user_id." });
+  }
+
+  try {
+    let avatarUrl;
+
+    if (req.file) {
+      avatarUrl = req.file.path; // Cloudinary ya lo sube y devuelve la URL
+    } else {
+      const [rows] = await db.query("SELECT avatar_url FROM users WHERE id = ?", [user_id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "Usuario no encontrado." });
+      }
+      avatarUrl = rows[0].avatar; // Mantener el actual
+    }
+
+    const query = `UPDATE users SET avatar_url = ? WHERE id = ?`;
+    const [result] = await db.query(query, [avatarUrl, user_id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(403).json({ message: "No se pudo actualizar el avatar." });
+    }
+
+    res.status(200).json({
+      message: "Avatar actualizado correctamente.!",
+      avatar: avatarUrl,
+    });
+  } catch (error) {
+    console.error("Error al actualizar el avatar:", error);
+    res.status(500).json({ message: "Error al actualizar el avatar." });
+  }
+};
+
+
 // Endpoint para editar un nombre de usuario
 exports.editUsername = async (req, res) => {
   const { user_id, username } = req.body;

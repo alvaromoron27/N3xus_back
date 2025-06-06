@@ -159,7 +159,7 @@ exports.editBook = async (req, res) => {
     console.error("Error al editar el libro:", err);
     res
       .status(500)
-      .json({ message: "Error interno del servidor al agregar el libro." });
+      .json({ message: "Error interno del servidor al editar el libro." });
   }
 };
 
