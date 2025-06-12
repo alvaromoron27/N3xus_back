@@ -27,3 +27,5 @@ exports.uploadAvatar = async (req, res) => {
     res.status(500).json({ message: 'Error interno al subir avatar' });
   }
 };
+
+

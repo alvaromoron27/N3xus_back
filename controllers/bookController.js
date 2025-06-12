@@ -403,3 +403,67 @@ exports.deleteBook = async (req, res) => {
     });
   }
 };
+
+exports.addComment = async (req, res) => {
+  const { content, userId, bookId } = req.body;
+
+  if (!content || !userId || !bookId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
+
+  try {
+    // 1. Insertar comentario
+    const insertQuery = `
+      INSERT INTO book_comments (book_id, user_id, content, created_at)
+      VALUES (?, ?, ?, NOW())
+    `;
+    const [insertResult] = await db.execute(insertQuery, [bookId, userId, content]);
+
+    const insertedId = insertResult.insertId;
+
+    // 2. Consultar el comentario insertado
+    const selectQuery = `
+      SELECT id, book_id, user_id, content, created_at
+      FROM book_comments
+      WHERE id = ?
+    `;
+    const [rows] = await db.execute(selectQuery, [insertedId]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Comentario no encontrado después de insertar." });
+    }
+
+    // 3. Devolver el comentario completo
+    return res.status(201).json({
+      message: "Comentario guardado correctamente.",
+      comment: rows[0],
+    });
+  } catch (error) {
+    console.error("Error al guardar comentario:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.getComments = async (req, res) => {
+  const { bookId } = req.params;
+
+  if (!bookId) {
+    return res.status(400).json({ error: "Falta el ID del libro." });
+  }
+
+  try {
+    const query = `
+      SELECT id, book_id, user_id, content, created_at
+      FROM book_comments
+      WHERE book_id = ?
+      ORDER BY created_at DESC
+    `;
+
+    const [rows] = await db.execute(query, [bookId]);
+
+    res.status(200).json({ comments: rows });
+  } catch (error) {
+    console.error("Error al obtener comentarios:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
