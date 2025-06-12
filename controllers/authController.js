@@ -49,7 +49,7 @@ exports.register = async (req, res) => {
       from: process.env.EMAIL,
       to: correo,
       subject: "🔐 Confirma tu cuenta 🔐",
-      text: `Hola ${nombre},\n\nGracias por registrarte. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
+      text: `Hola ${nombre},\n\nGracias por registrarte. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttps://n3xus-project.vercel.app/confirm-account/${token}`,
     };
 
     await transporter.sendMail(mailOptions);
@@ -111,7 +111,7 @@ exports.resendConfirmation = async (req, res) => {
       from: process.env.EMAIL,
       to: correo,
       subject: "🔐Confirma tu cuenta - Reenvío🔐",
-      text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttp://localhost:3000/confirm-account/${token}`,
+      text: `Hola ${usuario.nombre},\n\nReenvío de confirmación. Por favor, confirma tu cuenta haciendo clic en el siguiente enlace:\n\nhttps://n3xus-project.vercel.app/confirm-account/${token}`,
     };
 
     await transporter.sendMail(mailOptions);
@@ -324,7 +324,7 @@ exports.reset = async (req, res) => {
       from: process.env.EMAIL,
       to: email,
       subject: "Recuperación de contraseña",
-      text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: http://localhost:3000/reset-password/${token} el enlace expirará en 30 minutos.`,
+      text: `Para restablecer tu contraseña, haz clic en el siguiente enlace: https://n3xus-project.vercel.app/reset-password/${token} el enlace expirará en 30 minutos.`,
     };
 
     await transporter.sendMail(mailOptions);
