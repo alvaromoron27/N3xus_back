@@ -8,6 +8,7 @@ router.post('/resend-confirmation', authController.resendConfirmation);
 router.post('/login', authController.login);
 router.post('/reset', authController.reset);
 router.get("/verify-reset-token/:token", authController.verifyResetToken);
+router.get("/get-user/:userId", authController.getUserById);
 router.post('/reset-password', authController.resetPassword);
 router.post('/confirm-account', authController.confirmAccount);
 router.post('/edit-avatar', upload.single('avatar'), authController.editAvatar);

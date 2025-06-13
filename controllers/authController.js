@@ -560,3 +560,24 @@ exports.deleteAccount = async (req, res) => {
     res.status(500).send("Error interno del servidor");
   }
 };
+
+// Endpoint para obtener un usuario por su id
+exports.getUserById = async (req, res) => {
+  const userId = req.params.userId;
+  try{
+    const query = "SELECT * FROM users WHERE id = ?";
+    const [rows] = await db.query(query, [userId]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Usuario no encontrado." });
+    }
+
+    res.status(200).json({
+      message: "Usuario obtenido correctamente.",
+      user: rows[0]
+    })
+  } catch(error){
+    console.error("Error al obtener el usuario:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
