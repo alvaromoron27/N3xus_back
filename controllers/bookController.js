@@ -104,7 +104,9 @@ exports.editBook = async (req, res) => {
     if (req.file) {
       portadaUrl = req.file.path; // Imagen nueva subida a Cloudinary
     } else {
-      const [rows] = await db.query("SELECT portada FROM books WHERE id = ?", [book_id]);
+      const [rows] = await db.query("SELECT portada FROM books WHERE id = ?", [
+        book_id,
+      ]);
       if (rows.length === 0) {
         return res.status(404).json({ message: "Libro no encontrado." });
       }
@@ -417,7 +419,11 @@ exports.addComment = async (req, res) => {
       INSERT INTO book_comments (book_id, user_id, content, created_at)
       VALUES (?, ?, ?, NOW())
     `;
-    const [insertResult] = await db.execute(insertQuery, [bookId, userId, content]);
+    const [insertResult] = await db.execute(insertQuery, [
+      bookId,
+      userId,
+      content,
+    ]);
 
     const insertedId = insertResult.insertId;
 
@@ -430,7 +436,9 @@ exports.addComment = async (req, res) => {
     const [rows] = await db.execute(selectQuery, [insertedId]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: "Comentario no encontrado después de insertar." });
+      return res
+        .status(404)
+        .json({ error: "Comentario no encontrado después de insertar." });
     }
 
     // 3. Devolver el comentario completo
@@ -446,24 +454,38 @@ exports.addComment = async (req, res) => {
 
 exports.getComments = async (req, res) => {
   const { bookId } = req.params;
+  const limit = parseInt(req.query.limit, 10) || 5;
+  const offset = parseInt(req.query.offset, 10) || 0;
 
   if (!bookId) {
     return res.status(400).json({ error: "Falta el ID del libro." });
   }
 
   try {
+    // VALIDACIÓN adicional para evitar inyecciones
+    if (!Number.isInteger(limit) || !Number.isInteger(offset)) {
+      return res.status(400).json({ error: "Parámetros inválidos." });
+    }
+
     const query = `
       SELECT id, book_id, user_id, content, created_at
       FROM book_comments
       WHERE book_id = ?
       ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `;
 
     const [rows] = await db.execute(query, [bookId]);
 
-    res.status(200).json({ comments: rows });
+    const countQuery = `SELECT COUNT(*) AS total FROM book_comments WHERE book_id = ?`;
+    const [[{ total }]] = await db.execute(countQuery, [bookId]);
+
+    const hasMore = offset + limit < total;
+
+    res.status(200).json({ comments: rows, hasMore });
   } catch (error) {
     console.error("Error al obtener comentarios:", error);
     res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
