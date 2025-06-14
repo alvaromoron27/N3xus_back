@@ -489,3 +489,89 @@ exports.getComments = async (req, res) => {
   }
 };
 
+exports.addReply = async (req, res) => {
+  const { content, userId, commentId } = req.body;
+
+  if (!content || !userId || !commentId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
+
+  try {
+    // 1. Insertar respuesta
+    const insertQuery = `
+      INSERT INTO book_comment_replies (comment_id, user_id, content, created_at)
+      VALUES (?, ?, ?, NOW())
+    `;
+    const [insertResult] = await db.execute(insertQuery, [
+      commentId,
+      userId,
+      content,
+    ]);
+
+    const insertedId = insertResult.insertId;
+
+    // 2. Consultar la respuesta insertada
+    const selectQuery = `
+      SELECT id, comment_id, user_id, content, created_at
+      FROM book_comment_replies
+      WHERE id = ?
+    `;
+    const [rows] = await db.execute(selectQuery, [insertedId]);
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Respuesta no encontrada después de insertar." });
+    }
+
+    // 3. Devolver la respuesta completa
+    return res.status(201).json({
+      message: "Respuesta guardada correctamente.",
+      reply: rows[0],
+    });
+  } catch (error) {
+    console.error("Error al guardar la respuesta:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.getReplies = async (req, res) => {
+  const commentId = parseInt(req.query.commentId, 10);
+  const limit = Math.min(parseInt(req.query.limit, 10) || 5, 5); // máximo 100
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+
+  // Validaciones básicas
+  if (!commentId || isNaN(commentId)) {
+    return res.status(400).json({ error: "Falta un commentId válido en la query." });
+  }
+
+  try {
+    const query = `
+      SELECT id, comment_id, user_id, content, created_at
+      FROM book_comment_replies
+      WHERE comment_id = ?
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const [rows] = await db.execute(query, [commentId]);
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM book_comment_replies
+      WHERE comment_id = ?
+    `;
+    const [[{ total }]] = await db.execute(countQuery, [commentId]);
+
+    const hasMore = offset + limit < total;
+
+    return res.status(200).json({
+      replies: rows,
+      hasMore,
+    });
+  } catch (error) {
+    console.error("Error al obtener las respuestas:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+

@@ -7,6 +7,8 @@ router.post('/addBook', upload.single('portada'), bookController.addBook);
 router.post('/editBook/:book_id', upload.single('portada'), bookController.editBook);
 router.post('/save-book', bookController.saveBook);
 router.post('/add-comment', bookController.addComment);
+router.post('/add-reply', bookController.addReply);
+router.get('/get-replies', bookController.getReplies);
 router.get('/get-comments/:bookId', bookController.getComments);
 router.get('/getSavedBooks/:user_id', bookController.getSavedBooks);
 router.get('/allBooks', bookController.getAllBooks);
