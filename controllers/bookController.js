@@ -567,6 +567,7 @@ exports.getReplies = async (req, res) => {
 
     return res.status(200).json({
       replies: rows,
+      total,
       hasMore,
     });
   } catch (error) {
