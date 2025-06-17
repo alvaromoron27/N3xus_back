@@ -542,7 +542,9 @@ exports.getReplies = async (req, res) => {
 
   // Validaciones básicas
   if (!commentId || isNaN(commentId)) {
-    return res.status(400).json({ error: "Falta un commentId válido en la query." });
+    return res
+      .status(400)
+      .json({ error: "Falta un commentId válido en la query." });
   }
 
   try {
@@ -572,6 +574,81 @@ exports.getReplies = async (req, res) => {
     });
   } catch (error) {
     console.error("Error al obtener las respuestas:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.addLikeComment = async (req, res) => {
+  const userId = Number(req.body.userId);
+  const commentId = Number(req.body.commentId);
+
+  console.log("userId:", userId, "commentId:", commentId);
+
+  if (!userId || !commentId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
+
+  try {
+    // 1. añadir like en comentario
+    const insertQuery = `
+      INSERT INTO book_comment_likes (comment_id, user_id, created_at)
+      VALUES (?, ?, NOW())
+    `;
+    await db.execute(insertQuery, [commentId, userId]);
+
+    // 2. Consultar los likes del comentario
+    const selectQuery = `
+  SELECT comment_id, user_id, created_at
+  FROM book_comment_likes
+  WHERE comment_id = ?
+`;
+
+    const [rows] = await db.execute(selectQuery, [commentId]);
+    const likeCount = rows.length;
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "El comentario no tienen ningun like" });
+    }
+
+    // 3. Devolver la respuesta completa
+    return res.status(201).json({
+      message: "Like asignado correctamente",
+      reply: rows[0],
+    });
+  } catch (error) {
+    console.error("Error al asignar like:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.getCommentLikes = async (req, res) => {
+  const commentId = Number(req.params.commentId);
+
+  if (isNaN(commentId)) {
+    return res.status(400).json({ error: "ID de comentario inválido." });
+  }
+
+  try {
+    // 1. Obtener todos los likes (con datos)
+    const query = `
+      SELECT user_id, created_at
+      FROM book_comment_likes
+      WHERE comment_id = ?
+    `;
+    const [rows] = await db.execute(query, [commentId]);
+
+    // 2. Contar likes
+    const likeCount = rows.length;
+
+    return res.status(200).json({
+      commentId,
+      likeCount,
+      likes: rows  // array de { user_id, created_at }
+    });
+  } catch (error) {
+    console.error("Error al obtener likes del comentario:", error);
     return res.status(500).json({ error: "Error interno del servidor." });
   }
 };
