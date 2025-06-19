@@ -582,8 +582,6 @@ exports.addLikeComment = async (req, res) => {
   const userId = Number(req.body.userId);
   const commentId = Number(req.body.commentId);
 
-  console.log("userId:", userId, "commentId:", commentId);
-
   if (!userId || !commentId) {
     return res.status(400).json({ error: "Faltan campos obligatorios." });
   }
@@ -604,7 +602,6 @@ exports.addLikeComment = async (req, res) => {
 `;
 
     const [rows] = await db.execute(selectQuery, [commentId]);
-    const likeCount = rows.length;
 
     if (rows.length === 0) {
       return res
@@ -615,7 +612,7 @@ exports.addLikeComment = async (req, res) => {
     // 3. Devolver la respuesta completa
     return res.status(201).json({
       message: "Like asignado correctamente",
-      reply: rows[0],
+      numberLikes: rows.length,
     });
   } catch (error) {
     console.error("Error al asignar like:", error);
@@ -623,33 +620,84 @@ exports.addLikeComment = async (req, res) => {
   }
 };
 
+exports.removeLikeComment = async (req, res) => {
+  const userId = Number(req.body.userId);
+  const commentId = Number(req.body.commentId);
+
+  if (!userId || !commentId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
+
+  try {
+    // 1. Eliminar el like
+    const deleteQuery = `
+      DELETE FROM book_comment_likes
+      WHERE comment_id = ? AND user_id = ?
+    `;
+    const [result] = await db.execute(deleteQuery, [commentId, userId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "El like no existe." });
+    }
+
+    // 2. Consultar el número de likes actualizados
+    const [rows] = await db.execute(
+      `SELECT COUNT(*) AS likeCount FROM book_comment_likes WHERE comment_id = ?`,
+      [commentId]
+    );
+
+    const likeCount = rows[0].likeCount;
+
+    // 3. Devolver respuesta
+    return res.status(200).json({
+      message: "Like eliminado correctamente",
+      numberLikes: likeCount,
+    });
+  } catch (error) {
+    console.error("Error al eliminar like:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
 exports.getCommentLikes = async (req, res) => {
   const commentId = Number(req.params.commentId);
+  const userIdParam = req.query.userId;
 
   if (isNaN(commentId)) {
     return res.status(400).json({ error: "ID de comentario inválido." });
   }
 
-  try {
-    // 1. Obtener todos los likes (con datos)
-    const query = `
-      SELECT user_id, created_at
-      FROM book_comment_likes
-      WHERE comment_id = ?
-    `;
-    const [rows] = await db.execute(query, [commentId]);
+  // Solo convertir a número si el parámetro está presente y no está vacío
+  let userId = null;
+  if (userIdParam !== undefined && userIdParam !== "") {
+    userId = Number(userIdParam);
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: "ID de usuario inválido." });
+    }
+  }
 
-    // 2. Contar likes
+  try {
+    const [rows] = await db.execute(
+      `SELECT user_id, created_at FROM book_comment_likes WHERE comment_id = ?`,
+      [commentId]
+    );
+
     const likeCount = rows.length;
+    let likedByUser = false;
+
+    if (userId !== null) {
+      likedByUser = rows.some(row => row.user_id === userId);
+    }
 
     return res.status(200).json({
-      commentId,
       likeCount,
-      likes: rows  // array de { user_id, created_at }
+      likedByUser,
     });
   } catch (error) {
     console.error("Error al obtener likes del comentario:", error);
     return res.status(500).json({ error: "Error interno del servidor." });
   }
 };
+
+
 

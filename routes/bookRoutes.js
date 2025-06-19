@@ -17,6 +17,7 @@ router.get('/allBooks', bookController.getAllBooks);
 router.get('/newsBooks', bookController.getNewBooks);
 router.get('/booksByCategory', bookController.getBooksByCategory);
 router.get('/getBooksByUser/:user_id', bookController.getBooksByUser);
+router.delete("/remove-likeComment", bookController.removeLikeComment);
 router.delete('/deleteSavedBook', bookController.deleteSavedBook);
 router.delete('/deleteBook/:book_id', bookController.deleteBook);
 
