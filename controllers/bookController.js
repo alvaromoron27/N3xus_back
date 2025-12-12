@@ -452,6 +452,36 @@ exports.addComment = async (req, res) => {
   }
 };
 
+exports.deleteComment = async (req, res) => {
+  const { idComment } = req.body;
+
+  // Validación estricta del ID
+  if (
+    idComment === undefined ||
+    idComment === null ||
+    !Number.isInteger(idComment) ||
+    idComment <= 0
+  ) {
+    return res.status(400).json({ error: "ID de comentario inválido o ausente" });
+  }
+
+  try {
+    const deleteQuery = `DELETE FROM book_comments WHERE id = ?`;
+    const [result] = await db.execute(deleteQuery, [idComment]);
+
+    // Verifica si realmente se eliminó algo
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Comentario no encontrado" });
+    }
+
+    return res.status(200).json({ message: "Comentario eliminado correctamente" });
+  } catch (error) {
+    console.error("Error al eliminar comentario:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+
 exports.getComments = async (req, res) => {
   const { bookId } = req.params;
   const limit = parseInt(req.query.limit, 10) || 5;
@@ -531,6 +561,35 @@ exports.addReply = async (req, res) => {
     });
   } catch (error) {
     console.error("Error al guardar la respuesta:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.deleteReply = async (req, res) => {
+  const { idReply } = req.body;
+
+  // Validación estricta del ID
+  if (
+    idReply === undefined ||
+    idReply === null ||
+    !Number.isInteger(idReply) ||
+    idReply <= 0
+  ) {
+    return res.status(400).json({ error: "ID de respuesta inválido o ausente" });
+  }
+
+  try {
+    const deleteQuery = `DELETE FROM book_comment_replies WHERE id = ?`;
+    const [result] = await db.execute(deleteQuery, [idReply]);
+
+    // Verifica si realmente se eliminó algo
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Respuesta no encontrada" });
+    }
+
+    return res.status(200).json({ message: "Respuesta eliminada correctamente" });
+  } catch (error) {
+    console.error("Error al eliminar respuesta:", error);
     return res.status(500).json({ error: "Error interno del servidor." });
   }
 };
@@ -686,7 +745,7 @@ exports.getCommentLikes = async (req, res) => {
     let likedByUser = false;
 
     if (userId !== null) {
-      likedByUser = rows.some(row => row.user_id === userId);
+      likedByUser = rows.some((row) => row.user_id === userId);
     }
 
     return res.status(200).json({
@@ -699,5 +758,123 @@ exports.getCommentLikes = async (req, res) => {
   }
 };
 
+exports.addLikeReply = async (req, res) => {
+  const userId = Number(req.body.userId);
+  const replyId = Number(req.body.replyId);
 
+  if (!userId || !replyId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
 
+  try {
+    // 1. añadir like en respuesta
+    const insertQuery = `
+      INSERT INTO book_reply_likes (reply_id, user_id, created_at)
+      VALUES (?, ?, NOW())
+    `;
+    await db.execute(insertQuery, [replyId, userId]);
+
+    // 2. Consultar los likes de una respuesta
+    const selectQuery = `
+  SELECT reply_id, user_id, created_at
+  FROM book_reply_likes
+  WHERE reply_id = ?
+`;
+
+    const [rows] = await db.execute(selectQuery, [replyId]);
+
+    if (rows.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "La respuesta no tiene ningun like" });
+    }
+
+    // 3. Devolver la respuesta completa
+    return res.status(201).json({
+      message: "Like asignado correctamente",
+      numberLikes: rows.length,
+    });
+  } catch (error) {
+    console.error("Error al asignar like:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.removeLikeReply = async (req, res) => {
+  const userId = Number(req.body.userId);
+  const replyId = Number(req.body.replyId);
+
+  if (!userId || !replyId) {
+    return res.status(400).json({ error: "Faltan campos obligatorios." });
+  }
+
+  try {
+    // 1. Eliminar el like
+    const deleteQuery = `
+      DELETE FROM book_reply_likes
+      WHERE reply_id = ? AND user_id = ?
+    `;
+    const [result] = await db.execute(deleteQuery, [replyId, userId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "El like no existe." });
+    }
+
+    // 2. Consultar el número de likes actualizados
+    const [rows] = await db.execute(
+      `SELECT COUNT(*) AS likeCount FROM book_reply_likes WHERE reply_id = ?`,
+      [replyId]
+    );
+
+    const likeCount = rows[0].likeCount;
+
+    // 3. Devolver respuesta
+    return res.status(200).json({
+      message: "Like eliminado correctamente",
+      numberLikes: likeCount,
+    });
+  } catch (error) {
+    console.error("Error al eliminar like:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};
+
+exports.getReplyLikes = async (req, res) => {
+  const replyId = Number(req.params.replyId);
+  const userIdParam = req.query.userId;
+
+  if (isNaN(replyId)) {
+    return res.status(400).json({ error: "ID de respuesta inválido." });
+  }
+
+  // Solo convertir a número si el parámetro está presente y no está vacío
+  let userId = null;
+  if (userIdParam !== undefined && userIdParam !== "") {
+    userId = Number(userIdParam);
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: "ID de usuario inválido." });
+    }
+  }
+
+  try {
+    const [rows] = await db.execute(
+      `SELECT user_id, created_at FROM book_reply_likes WHERE reply_id = ?`,
+      [replyId]
+    );
+
+    const likeCount = rows.length;
+    let likedByUser = false;
+
+    if (userId !== null) {
+      likedByUser = rows.some((row) => row.user_id === userId);
+    }
+
+    return res.status(200).json({
+      likeCount,
+      likedByUser,
+    });
+  } catch (error) {
+    console.error("Error al obtener likes de la respuesta:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+};

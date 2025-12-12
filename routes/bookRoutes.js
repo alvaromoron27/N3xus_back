@@ -9,7 +9,9 @@ router.post('/save-book', bookController.saveBook);
 router.post('/add-comment', bookController.addComment);
 router.post('/add-reply', bookController.addReply);
 router.post('/add-likeComment', bookController.addLikeComment);
+router.post('/add-likeReply', bookController.addLikeReply);
 router.get("/likes-comment/:commentId", bookController.getCommentLikes);
+router.get("/likes-reply/:replyId", bookController.getReplyLikes);
 router.get('/get-replies', bookController.getReplies);
 router.get('/get-comments/:bookId', bookController.getComments);
 router.get('/getSavedBooks/:user_id', bookController.getSavedBooks);
@@ -17,7 +19,10 @@ router.get('/allBooks', bookController.getAllBooks);
 router.get('/newsBooks', bookController.getNewBooks);
 router.get('/booksByCategory', bookController.getBooksByCategory);
 router.get('/getBooksByUser/:user_id', bookController.getBooksByUser);
+router.delete('/delete-comment', bookController.deleteComment)
+router.delete('/delete-reply', bookController.deleteReply)
 router.delete("/remove-likeComment", bookController.removeLikeComment);
+router.delete("/remove-likeReply", bookController.removeLikeReply);
 router.delete('/deleteSavedBook', bookController.deleteSavedBook);
 router.delete('/deleteBook/:book_id', bookController.deleteBook);
 
